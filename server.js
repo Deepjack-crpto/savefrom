@@ -17,10 +17,8 @@ app.use(express.json());
 app.use(express.static(__dirname));
 
 // Downloads directory
-const DOWNLOADS_DIR = path.join(__dirname, 'downloads');
-if (!fs.existsSync(DOWNLOADS_DIR)) {
-    fs.mkdirSync(DOWNLOADS_DIR, { recursive: true });
-}
+// Use os.tmpdir() which resolves to /tmp on Vercel and %TEMP% on Windows
+const DOWNLOADS_DIR = process.env.VERCEL ? '/tmp' : os.tmpdir();
 
 // Helper: run yt-dlp with args
 function runYtDlp(args) {
@@ -328,6 +326,7 @@ function getLanIP() {
 }
 
 app.listen(PORT, '0.0.0.0', () => {
+    if (process.env.VERCEL) return;
     const lanIP = getLanIP();
     console.log(`\n🚀 SaveFrom server running!`);
     console.log(`   PC:     http://localhost:${PORT}/savefrom.html`);
@@ -335,3 +334,5 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log(`\n   yt-dlp: ${YT_DLP}`);
     console.log(`   ffmpeg: ${FFMPEG_DIR}\n`);
 });
+
+module.exports = app;
