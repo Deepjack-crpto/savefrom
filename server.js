@@ -9,8 +9,8 @@ const app = express();
 const PORT = 3000;
 
 // Tool paths
-const YT_DLP = 'C:\\Users\\user\\AppData\\Local\\Python\\pythoncore-3.14-64\\Scripts\\yt-dlp.exe';
-const FFMPEG_DIR = 'C:\\Users\\user\\AppData\\Local\\Microsoft\\WinGet\\Packages\\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\\ffmpeg-8.1.1-full_build\\bin';
+const YT_DLP = process.env.YT_DLP_PATH || 'yt-dlp';
+const FFMPEG_DIR = process.env.FFMPEG_PATH || '';
 
 app.use(cors());
 app.use(express.json());
@@ -23,10 +23,17 @@ const DOWNLOADS_DIR = process.env.VERCEL ? '/tmp' : os.tmpdir();
 // Helper: run yt-dlp with args
 function runYtDlp(args) {
     return new Promise((resolve, reject) => {
-        const env = { ...process.env, PATH: FFMPEG_DIR + ';' + process.env.PATH };
+        const env = { ...process.env };
+        if (FFMPEG_DIR) {
+            env.PATH = FFMPEG_DIR + (os.platform() === 'win32' ? ';' : ':') + process.env.PATH;
+        }
         execFile(YT_DLP, args, { env, maxBuffer: 10 * 1024 * 1024, timeout: 60000 }, (err, stdout, stderr) => {
             if (err) {
-                reject(new Error(stderr || err.message));
+                if (err.code === 'ENOENT') {
+                    reject(new Error('yt-dlp executable not found. Please ensure it is installed and in your PATH, or set YT_DLP_PATH.'));
+                } else {
+                    reject(new Error(stderr || err.message));
+                }
             } else {
                 resolve(stdout);
             }
@@ -144,17 +151,22 @@ app.get('/api/download/video', async (req, res) => {
         }
 
         const tempFile = path.join(DOWNLOADS_DIR, `temp_${Date.now()}.mp4`);
-        const env = { ...process.env, PATH: FFMPEG_DIR + ';' + process.env.PATH };
+        const env = { ...process.env };
+        if (FFMPEG_DIR) {
+            env.PATH = FFMPEG_DIR + (os.platform() === 'win32' ? ';' : ':') + process.env.PATH;
+        }
         
         const args = [
             '-f', formatSelector,
             '--merge-output-format', 'mp4',
             '--no-playlist',
             '--no-warnings',
-            '-o', tempFile,
-            '--ffmpeg-location', FFMPEG_DIR,
-            url
+            '-o', tempFile
         ];
+        if (FFMPEG_DIR) {
+            args.push('--ffmpeg-location', FFMPEG_DIR);
+        }
+        args.push(url);
 
         console.log(`[DOWNLOAD VIDEO] Starting: ${safeTitle}`);
         
@@ -198,7 +210,11 @@ app.get('/api/download/video', async (req, res) => {
 
         proc.on('error', (err) => {
             console.error('[PROC ERROR]', err);
-            res.status(500).json({ error: 'Failed to start download: ' + err.message });
+            if (err.code === 'ENOENT') {
+                res.status(500).json({ error: 'yt-dlp not found on the deployment server. Please check the backend configuration.' });
+            } else {
+                res.status(500).json({ error: 'Failed to start download: ' + err.message });
+            }
         });
 
     } catch (err) {
@@ -225,7 +241,10 @@ app.get('/api/download/audio', async (req, res) => {
 
         const outputFilename = `${safeTitle}.mp3`;
         const tempFile = path.join(DOWNLOADS_DIR, `temp_audio_${Date.now()}.mp3`);
-        const env = { ...process.env, PATH: FFMPEG_DIR + ';' + process.env.PATH };
+        const env = { ...process.env };
+        if (FFMPEG_DIR) {
+            env.PATH = FFMPEG_DIR + (os.platform() === 'win32' ? ';' : ':') + process.env.PATH;
+        }
 
         const args = [
             '-x',
@@ -233,10 +252,12 @@ app.get('/api/download/audio', async (req, res) => {
             '--audio-quality', '0',
             '--no-playlist',
             '--no-warnings',
-            '-o', tempFile,
-            '--ffmpeg-location', FFMPEG_DIR,
-            url
+            '-o', tempFile
         ];
+        if (FFMPEG_DIR) {
+            args.push('--ffmpeg-location', FFMPEG_DIR);
+        }
+        args.push(url);
 
         console.log(`[DOWNLOAD AUDIO] Starting: ${safeTitle}`);
 
@@ -298,7 +319,11 @@ app.get('/api/download/audio', async (req, res) => {
 
         proc.on('error', (err) => {
             console.error('[PROC ERROR]', err);
-            res.status(500).json({ error: 'Failed to start audio download: ' + err.message });
+            if (err.code === 'ENOENT') {
+                res.status(500).json({ error: 'yt-dlp not found on the deployment server. Please check the backend configuration.' });
+            } else {
+                res.status(500).json({ error: 'Failed to start audio download: ' + err.message });
+            }
         });
 
     } catch (err) {
