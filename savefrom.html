@@ -626,8 +626,10 @@
     </footer>
 
     <script>
-        // Smart API URL: Works if opened directly (file://) or via network (mobile/PC browser)
-        const API = window.location.protocol === 'file:' ? 'http://localhost:3000' : '';
+        // Smart API Configuration
+        // IMPORTANT: Once deployed to Railway/Render, paste your backend URL here (e.g., 'https://save-from-api.up.railway.app')
+        const REMOTE_BACKEND_URL = ''; 
+        const API = window.location.protocol === 'file:' ? 'http://localhost:3000' : (REMOTE_BACKEND_URL || '');
         let currentUrl = '';
         let currentInfo = null;
 
